@@ -1,0 +1,8 @@
+{
+  "name": "canvas-inject",
+  "version": "1.0.0",
+  "author": "BLAZERHM",
+  "dependencies": {
+    "http-proxy-middleware": "^2.0.6"
+  }
+}

@@ -1,30 +1,37 @@
 const express = require('express');
-const { createProxyMiddleware, responseInterceptor } = require('http-proxy-middleware');
+const { createProxyMiddleware } = require('http-proxy-middleware');
 const cors = require('cors');
 
 const app = express();
-const PORT = 3000; // Hardcoded port number
-const targetUrl = 'https://y115.instructure.com'; // Hardcoded target URL
+const targetUrl = 'https://y115.instructure.com';  // Target URL
 
 app.use(cors());
 
-app.use('/', createProxyMiddleware({
+const proxy = createProxyMiddleware({
     target: targetUrl,
     changeOrigin: true,
-    selfHandleResponse: true,
-    onProxyRes: responseInterceptor(async (responseBuffer, proxyRes, req, res) => {
-        const contentType = proxyRes.headers['content-type'];
-        let response = responseBuffer.toString('utf8');
+    selfHandleResponse: false,  // Let the proxy middleware handle the response
+    onProxyRes: function (proxyRes, req, res) {
+        if ([301, 302, 303, 307, 308].includes(proxyRes.statusCode) && proxyRes.headers.location) {
+            let location = proxyRes.headers.location;
 
-        if (contentType && contentType.includes('text/html')) {
-            const script = `<script>(function() { setTimeout(function() {alert('Hello World'); }, 5000); })();</script>`;
-            response = response.replace('<head>', `<head>${script}`);
+            // Check if the redirect location matches the target URL
+            if (location.startsWith(targetUrl)) {
+                // Rewrite the location to go through the proxy server
+                location = location.replace(targetUrl, 'https://proxy-canvas.onrender.com');
+            } else if (!location.startsWith('http')) {
+                // Handle relative redirects by prefixing with the proxy server URL
+                location = 'https://proxy-canvas.onrender.com' + location;
+            }
+
+            proxyRes.headers.location = location;
         }
+    },
+});
 
-        return response;
-    })
-}));
+app.use('/', proxy);
 
-app.listen(PORT, () => {
-    console.log(`Proxy server listening on http://localhost:${PORT}`);
+const port = process.env.PORT || 3000;
+app.listen(port, () => {
+    console.log(`Proxy server listening on port ${port}`);
 });
